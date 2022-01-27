@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE-edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>ONLINE REPEAT BOOKINGS</title>
+    <link type="text/css" rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+</head>
+<body>
+<!-- development version, includes helpful console warnings -->
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+
+<div class="container-fluid">
+    <div class="row bg-dark">
+        <div class="col-lg-12">
+            <p class="text-center text-light display-4 pt-2" style="font-size:25px;">ONLINE REPEAT BOOKINGS</p>
+        </div>
+    </div>
+</div>
+
+
+
+<div class="container" id="app2">
+
+    <div v-if="mainPage">
+        <div class="row">
+            <div class="col">
+                <nav class="sidebar" v-if="logged">
+                    <div class="text">Menu</div>
+                    <ul>
+                        <li>
+                            <a href="#" v-on:click="showAllRepetition">Ripetizioni disponibili</a>
+                        </li>
+                        <li v-if="!isAdmin">
+                            <a href="#" v-on:click="getMyCorsi">Le mie prenotazioni</a>
+                        </li>
+                        <li v-if="isAdmin">
+                            <a href="#" v-on:click="getActivePrenotation">Prenotazioni Attive</a>
+                        </li>
+                        <li>
+                            <a href="#" v-on:click="getStoricoPrenotation">Storico</a>
+                        </li>
+                        <li v-if="isAdmin">
+                            <a href="#" v-on:click="getAssociations" >Gestisci</a>
+                        </li>
+                        <li v-if="isAdmin">
+                            <a href="#" v-on:click="getRepeatData">Lista dati</a>
+                        </li>
+                        <li>
+                            <a href="#" v-on:click="doLogout">Esci</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            <div class="col" style="padding-right: 600px; padding-top: 15px">
+                <h3 class="text-info">booking</h3>
+            </div>
+            <div class="col" style="padding-top: 15px">
+                <button v-on:click="turnOnLoginPage" v-if="!logged" class="btn btn-info float-right">
+                    <i class="fas fa-user"></i>Login
+                </button>
+            </div>
+        </div>
+        <hr class="bg-info" style="margin-left: 100px; width: 100%;">
+        <div class="row" v-if="!repeatDataFlag" >
+            <div class="col-lg-9" style="margin-left: 110px;" v-if="!manageFlag" >
+                <ul class="nav nav-tabs flex-column" v-for="corso in corsi">
+                    <li class="nav-item dropdown" style="margin-bottom: 10px; width: 100%;">
+                        <div v-on:click="getInsegnanti(corso)"
+                             class="nav-link dropdown-toggle bg-info text-light"
+                             data-toggle="dropdown" role="button" style="text-align:center;">
+                            {{corso.title}}
+                            <span class="caret"></span>
+                        </div>
+
+                        <div id="elencoInsegnanti" class="col-lg-12" v-for="insegnante in insegnanti" v-if="corso.id === idCorso">
+                            <div v-on:click="getRipetizioni(insegnante,corso)" class ="dropdown-item" role="button">{{insegnante.surname}}</div>
+                            <table class="table table-striped" v-if="checkRipetizioni === insegnante.id" id="tabellaRipetizioni">
+                                <thead>
+                                <tr>
+                                    <th>Giorno</th>
+                                    <th>Slot</th>
+                                </tr>
+                                </thead>
+                                <tbody v-for="ripetizione in ripetizioni" v-if="ripetizione.docente.id === insegnante.id" >
+                                <tr v-if="ripetizione.corso.id === corso.id">
+                                    <td>
+                                        {{ripetizione.giorno}}
+                                    </td>
+                                    <td>
+                                        {{ripetizione.slot}}
+                                    </td>
+
+                                    <td  v-if="!viewMyPrenotation">
+                                        <Button v-on:click="prenotaRipetizione(insegnante.id,corso.id,ripetizione.giorno,ripetizione.slot)" v-if="logged && !isAdmin"> Prenota</Button>
+                                    </td>
+                                    <td v-if="viewMyPrenotation">
+                                        <Button v-on:click="disdiciPrenotazione(insegnante.id,corso.id,ripetizione.giorno,ripetizione.slot)" >Cancella Prenotazione</Button>
+                                    </td>
+                                    <td v-if="viewMyPrenotation">
+                                        <Button v-on:click="segnaPrenotazioneEffettuata(insegnante.id,corso.id,ripetizione.giorno,ripetizione.slot)" >Segna Effettuata</Button>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            <!--
+            <div class="col" v-if="logged">
+                <ul v-for="corso in corsi" style="list-style-type: none">
+                    <li>
+                        <button v-on:click="eliminaCorso(corso)" type="button" class="btn btn-secondary">Elimina</button>
+                    </li>
+                </ul>
+            </div>
+            -->
+        </div>
+        <div class="row" v-if="activePrenotation" style="padding-left: 120px;">
+            <div class="col">
+                <h5 style="text-align: center">Prenotazioni Attive</h5>
+                <div class="table table-striped">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Utente</th>
+                            <th>Corso</th>
+                            <th>Docente</th>
+                            <th>Giorno</th>
+                            <th>Orario</th>
+                        </tr>
+                        </thead>
+                        <tbody >
+                        <tr v-for="rip in ripetizioni">
+                            <td>{{rip.utente.account}}</td>
+                            <td>{{rip.corso.title}}</td>
+                            <td>{{rip.docente.surname}}</td>
+                            <td>{{rip.giorno}}</td>
+                            <td>{{rip.slot}}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="row" v-if="storicoFlag" style="padding-left: 120px;">
+            <div class="col">
+                <h5 style="text-align: center">Ripetizioni effettuate</h5>
+                <div class="table table-striped">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th v-if="isAdmin">Utente</th>
+                            <th>Corso</th>
+                            <th>Docente</th>
+                            <th>Giorno</th>
+                            <th>Orario</th>
+                        </tr>
+                        </thead>
+                        <tbody >
+                        <tr v-for="rip in ripetizioniEffettuate">
+                            <td v-if="isAdmin">{{rip.utente.account}}</td>
+                            <td>{{rip.corso.title}}</td>
+                            <td>{{rip.docente.surname}}</td>
+                            <td>{{rip.giorno}}</td>
+                            <td>{{rip.slot}}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col">
+                <h5 style="text-align: center">Prenotazioni disdette</h5>
+                <div class="table table-striped">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th v-if="isAdmin">Utente</th>
+                            <th>Corso</th>
+                            <th>Docente</th>
+                            <th>Giorno</th>
+                            <th>Orario</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="ripetizione in ripetizioni">
+                            <td v-if="isAdmin">{{ripetizione.utente.account}}</td>
+                            <td>{{ripetizione.corso.title}}</td>
+                            <td>{{ripetizione.docente.surname}}</td>
+                            <td>{{ripetizione.giorno}}</td>
+                            <td>{{ripetizione.slot}}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="row" v-if="manageFlag">
+            <div class="col">
+                <h5 style="text-align: center">Insegnamenti</h5>
+                <div class="table table-striped" style="padding-left: 120px;" >
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Cognome</th>
+                                <th>Corso</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="assign in courseAndTeacher">
+                                <td>{{assign.docente.name}}</td>
+                                <td>{{assign.docente.surname}}</td>
+                                <td>{{assign.corso.title}}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col">
+                <h5 style="text-align: center">Crea assegnamento corso-docente</h5>
+                <div class="container" style="display: grid; grid-template-columns: 1fr 1fr;">
+                    <label for="selezionaCorsi"> Seleziona il corso: </label>
+                    <select class="form-select" aria-label="Default select example" id ="selezionaCorsi" v-on:click="getAllCourses" v-model="corsoSelezionato">
+                        <option selected>Seleziona il corso</option>
+                        <option v-for="course in courses" v-bind:value="course.id"> {{course.title}}</option>
+                    </select>
+                    <label for="selezionaProf"> Seleziona il professore: </label>
+                    <select class="form-select" aria-label="Default select example" id="selezionaProf" v-on:click="getDocentiNotAssigned(corsoSelezionato)" v-model="docenteSelezionato">
+                        <option selected>Seleziona il professore</option>
+                        <option v-for="ins in insegnanti" v-bind:value="ins.id">{{ins.surname}}</option>
+                    </select>
+                </div>
+                <br>
+                    <div style="text-align: center;">
+                        <input type="button" name="Assegna" value="Assegna" v-on:click="assignDocenteCorso">
+                    </div>
+                </br>
+
+                <h5 style="text-align: center">elimina un assegnamento corso-docente</h5>
+                <div class="container" style="display: grid; grid-template-columns: 1fr 1fr;">
+                    <label for="selezionaCorsi"> Seleziona il corso: </label>
+                    <select class="form-select" aria-label="Default select example" v-on:click="getAllCourses" v-model="courseToDelete">
+                        <option selected>Seleziona il corso</option>
+                        <option v-for="course in courses" v-bind:value="course"> {{course.title}}</option>
+                    </select>
+                    <label for="selezionaProf"> Seleziona il professore: </label>
+                    <select class="form-select" aria-label="Default select example" v-on:click="getTeacherAssignedToCourseForDelete(courseToDelete)" v-model="teacherToDelete">
+                        <option selected>Seleziona il professore</option>
+                        <option v-for="ins in insegnanti" v-bind:value="ins.id">{{ins.surname}}</option>
+                    </select>
+                </div>
+                <br>
+                    <div style="text-align: center;">
+                        <input type="button" name="Elimina" value="Elimina" v-on:click="eliminaDocenteCorso">
+                    </div>
+                </br>
+
+            </div>
+        </div>
+        <div class="row" v-if="repeatDataFlag" style="padding-left: 120px;">
+            <div class="col">
+                <div class="row">
+                    <form>
+                        <label for="fname">Nome:</label>
+                        <input type="text" id="fname" name="fname" v-model="nomeProfessore"><br>
+                        <label for="lname">Cognome:</label>
+                        <input type="text" id="lname" name="lname" v-model="cognomeProfessore"><br>
+                        <input type="button" value="Aggiungi" v-on:click="addDocente">
+                    </form>
+                </div>
+                <h5 style="text-align: center">Docenti</h5>
+                <div class="table table-striped">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Cognome</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="insegnante in insegnanti">
+                            <td>{{insegnante.name}}</td>
+                            <td>{{insegnante.surname}}</td>
+                            <td>
+                                <Button v-on:click="deleteDocente(insegnante.id)">Elimina</Button>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col">
+                <div class="row">
+                    <form>
+                        <label for="titolo">Titolo corso:</label>
+                        <input type="text" id="titolo" name="titolo" v-model="titoloCorso"><br>
+                        <input type="button" value="Aggiungi" v-on:click="addCorso">
+                    </form>
+                </div>
+                <h5 style="text-align: center">Corsi</h5>
+                <div class="table table-striped">
+                    <table>
+                        <tbody>
+                        <tr v-for="corso in corsi">
+                            <td>{{corso.title}}</td>
+                            <td>
+                                <Button v-on:click="deleteCorso(corso.id)">Elimina</Button>
+                            </td>
+
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row" v-if="loginPage">
+        <div class="col-lg-4 offset-lg-4 bg-light rounded" id="login-box">
+            <h2 class="text-center mt-2">Login</h2>
+            <div class="p-2" id="login-frm">
+                <div class="form-group">
+                    <input type="text" v-model="account" class="form-control" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="text" v-model="password" class="form-control" placeholder="Password" required>
+                </div>
+                <div class="form-group">
+                    <input type="button" v-on:click="doLogin" value="Login" class="btn btn-primary btn-block">
+                    <input type="button" v-on:click="turnOffLoginPage" value="Annulla" class="btn btn-secondary btn-block">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="app3">
+    <div class="alert alert-danger" v-if="errorMsg">
+        Error Message
+    </div>
+    <div class="alert alert-success" v-if="successMsg">
+        Success Message
+    </div>
+</div>
+<script src="https://unpkg.com/ionicons@5.1.2/dist/ionicons.js"></script>
+<script>
+    var app = new Vue ({
+        el: '#app',
+        data: {
+            coppie: [],
+            link: 'http://localhost:8080/Ripetizioni/ServletRipetizioni'
+        },
+        //mounted è una funzione che viene invocata quanto la componente è pronta
+        mounted(){
+            this.getCoppie()
+        },
+        methods:{
+            getCoppie: function(){
+                var self = this;
+                $.getJSON(this.link, function(data) {
+                    self.coppie = data;
+                    //self.coppie = JSON.stringify(data); // non funziona
+                });
+            }
+        }
+    });
+</script>
+
+<script>
+    var app2 = new Vue({
+        el: '#app2',
+        data: {
+            link: 'http://localhost:8080/Ripetizioni/ServletRipetizioni',
+            corsi: [],
+            insegnanti:[],
+            idCorso: null,
+            ripetizioni:[],
+            checkRipetizioni: null,
+            ripetizioniEffettuate: [],
+            coursesToDelete:[],
+            session: 'nessuna sessione', // da eliminare in caso e anche quando si fa il login. da modificare anche l'ogetto login control, forse non serve
+            logged: false,
+            mainPage: true,
+            loginPage: false,
+            account: '',
+            password: '',
+            viewMyPrenotation : false,
+            storicoFlag : false,
+            isAdmin : false,
+            courseAndTeacher : [],
+            manageFlag : false,
+            repeatDataFlag: false,      //cliccando lista dati
+            activePrenotation: false,  //cliccando Prenotazioni Attive dal pannello dell'admin
+            courses: [],
+            nomeProfessore: '', // serve per aggiunger il professore nella listaDati
+            cognomeProfessore: '', // serve per aggiunger il professore nella listaDati
+            titoloCorso: '',    // serve per aggiunger il corso nella listaDati
+            corsoSelezionato: null, // serve per la comboBox per associare un corso ad un docente
+            docenteSelezionato : null, // serve per la comboBox per associare un corso ad un docente
+            courseToDelete: null,
+            teacherToDelete: null
+        },
+        mounted() {
+            var self = this;
+            $.post(self.link, {"action": "corsi"}, (json) => {
+                if (json.status === 200) {
+                    self.corsi = json.data;
+                }
+            });
+
+            $.post(self.link,{"action": "checkLogged"},(json) =>{
+                if(json.status === 200){
+                    logcontr = json.loginControl;
+                    if(logcontr.flag) {
+                        if(logcontr.utente.role === "admin"){
+                            self.isAdmin = true;
+                        }
+                        self.logged = true;
+                    }
+                }
+            });
+
+        },
+        methods:{
+
+            getMyCorsi: function (){
+                var self = this;
+                $.get(self.link,{"action":"viewMyPrenotationCorsi"},(json) => {
+                    if(json.status === 200){
+                        self.viewMyPrenotation = true;
+                        self.manageFlag = false;
+                        self.ripetizioni = null;
+                        self.insegnanti = null;
+                        self.storicoFlag = false;
+                        self.corsi = json.data;
+                        self.repeatDataFlag = false;
+                        self.activePrenotation = false;
+                        self.repeatDataFlag = false;
+                    }
+                })
+
+            },
+            showAllRepetition: function (){
+                var self = this;
+                $.post(self.link, {"action": "corsi"}, (json) => {
+                    if (json.status === 200) {
+                        self.ripetizioni = null;
+                        self.insegnanti = null;
+                        self.corsi = json.data;
+                        self.storicoFlag = false;
+                        self.viewMyPrenotation = false;
+                        self.repeatDataFlag = false;
+                        self.manageFlag = false;
+                        self.activePrenotation = false;
+                        self.repeatDataFlag = false;
+                    }
+                });
+            },
+
+            disdiciPrenotazione: function (idDocente,idCorso,giorno,slot){
+                var self = this;
+                $.get(self.link,{"docente" : idDocente,"corso" :idCorso, "giorno": giorno , "slot": slot,"action": "disdiciPrenotazione"},(json)=>{
+                    if(json.status === 200){
+                        for(var i = 0 ; i<self.ripetizioni.length ; i++){
+                            if(self.ripetizioni[i].giorno === giorno ){
+                                if(self.ripetizioni[i].slot === slot){
+                                    self.ripetizioni.splice(i,1);
+                                    break;
+                                }
+                            }
+                        }
+                        alert("Prenotazione cancellata correttamente: Giorno " + giorno+" alle "+slot );
+                    }
+                })
+            },
+
+            segnaPrenotazioneEffettuata: function (idDocente,idCorso,giorno,slot){
+                var self = this;
+                $.get(self.link,{"docente" : idDocente,"corso" :idCorso, "giorno": giorno , "slot": slot,"action": "segnaPrenotazioneEffettuata"},(json)=>{
+                    if(json.status === 200){
+                        for(var i = 0 ; i<self.ripetizioni.length ; i++){
+                            if(self.ripetizioni[i].giorno === giorno ){
+                                if(self.ripetizioni[i].slot === slot){
+                                    self.ripetizioni.splice(i,1);
+                                    break;
+                                }
+                            }
+                        }
+                        alert("Prenotazione segnata come effettuata correttamente: Giorno " + giorno+" alle "+slot );
+                    }
+                })
+            },
+
+            prenotaRipetizione: function (idDocente,idCorso,giorno,slot){
+                var self = this;
+                $.get(self.link,{"docente" : idDocente,"corso" :idCorso, "giorno": giorno , "slot": slot,"action": "prenotaRipetizione"},(json)=>{
+                    if(json.status === 200){
+                        for(var i = 0 ; i<self.ripetizioni.length ; i++){
+                            if(self.ripetizioni[i].giorno === giorno ){
+                                if(self.ripetizioni[i].slot === slot) {
+                                    self.ripetizioni.splice(i, 1);
+                                    break;
+                                }
+                            }
+                        }
+                        alert("Ripetizione prenotata correttamente: Giorno " + giorno+" alle "+slot );
+                    }
+                })
+            },
+            getInsegnanti: function(corso){
+                var self = this;
+                if(self.idCorso === null || self.idCorso !== corso.id) {
+                    if (!self.viewMyPrenotation) {
+                        $.post(self.link, {"corso": corso.title, "action": "insegnanti"}, (json) => {
+                            if (json.status === 200) {
+                                self.idCorso = corso.id;
+                                self.insegnanti = json.data;
+                                self.checkRipetizioni = null;
+                                document.getElementById("tabellaRipetizioni").style.display = "block";
+                                //document.getElementById("elencoInsegnanti").style.display="none";
+                            }
+                        });
+                    }else{
+                        $.get(self.link,{"corso": corso.title, "action":"getInsegnantiPrenotazioniEffettuate"},(json)=>{
+                            if(json.status === 200){
+                                self.idCorso = corso.id;
+                                self.insegnanti = json.data;
+                                self.checkRipetizioni = null;
+                                self.ripetizioni = null;
+                                document.getElementById("tabellaRipetizioni").style.display = "block";
+                            }
+                        })
+                    }
+                }
+                else if(self.idCorso === corso.id){
+                    self.idCorso = null;
+                    self.checkRipetizioni = null;
+                    document.getElementById("tabellaRipetizioni").style.display="block";
+                    document.getElementById("elencoInsegnanti").style.display="block";
+                }
+            },
+            getRipetizioni: function (insegnante,corso){
+                var self = this;
+                if(self.checkRipetizioni === null || self.checkRipetizioni !== insegnante.id) {
+                    if(!self.viewMyPrenotation) {
+                        $.get(self.link, {"docente": insegnante.id, "corso": corso.id, "action": "getRipetizioniForDocente"}, (json) => {
+                            if (json.status === 200) {
+                                self.ripetizioni = json.data;
+                                self.checkRipetizioni = insegnante.id;
+                            }
+                        })
+                    }
+                    else{
+                        $.get(self.link, {"docente": insegnante.id, "corso": corso.id, "action": "getMyActivePrenotation"}, (json) => {
+                            if (json.status === 200) {
+                                self.ripetizioni = json.data;
+                                self.checkRipetizioni = insegnante.id;
+                            }
+                        })
+
+                    }
+                }
+                else if(self.checkRipetizioni === insegnante.id){
+                    self.checkRipetizioni = null;
+                    document.getElementById("tabellaRipetizioni").style.display="block";
+                }
+            },
+
+            getStoricoPrenotation : function (){
+                var self = this;
+                if(self.isAdmin){
+                    $.get(self.link, {"action": "getStoricoPrenotationDisdetteForAdmin"}, (json) => {
+                        if (json.status === 200) {
+                            self.ripetizioni = null;
+                            self.ripetizioni = json.data;
+
+                        }
+                    });
+                    $.get(self.link, {"action": "getStoricoPrenotationEffettuateForAdmin"}, (json) => {
+                        if (json.status === 200) {
+                            self.ripetizioniEffettuate = json.data;
+
+                        }
+                    });
+
+                }
+                else {
+                    $.get(self.link, {"action": "getMyPrenotazioniDisdette"}, (json) => {
+                        if (json.status === 200) {
+                            self.ripetizioni = json.data;
+
+                        }
+                    });
+                    $.get(self.link, {"action": "getMyPrenotazioniEffettuate"}, (json) => {
+                        if (json.status === 200) {
+                            self.ripetizioniEffettuate = json.data;
+                        }
+                    });
+                }
+                self.corsi = null;
+                self.storicoFlag = true;
+                self.repeatDataFlag = false;
+                self.manageFlag = false;
+                self.activePrenotation = false;
+            },
+
+            getActivePrenotation : function () {
+                var self = this;
+                if(self.isAdmin) {
+                    $.get(self.link, {"action": "getAllActivePrenotationForAdmin"}, (json) => {
+                        if (json.status === 200) {
+                            self.ripetizioni = json.data;
+                        }
+                    });
+                }
+                self.activePrenotation = true;
+                self.corsi = null;
+                self.storicoFlag = false;
+                self.repeatDataFlag = false;
+                self.manageFlag = false;
+            },
+
+            doLogin: function (){
+                var self = this;
+                if(this.account === '' || this.password === '')
+                    alert("ERRORE: Username o password mancanti")
+                else{
+                    $.post(self.link,{"username" : this.account,"password": this.password, "action": "login","sessione": this.session},(json) =>{
+                        if(json.status === 200){
+                            logcontr = json.loginControl;
+                            if(logcontr.flag) {
+                                if(logcontr.utente.role === "admin"){
+                                    self.isAdmin = true;
+                                }
+                                self.logged = true;
+                                self.turnOffLoginPage();
+                            }
+                            else
+                                alert("ERRORE: Username o password errati!");
+
+                        }
+                    })
+                }
+            },
+            doLogout: function (){
+                var self = this;
+                $.get(self.link,{"action" : "logout"},(json)=>{
+                    if(json.status === 200){
+                        self.logged = false;
+                        self.viewMyPrenotation = false;
+                        self.insegnanti = null;
+                        self.ripetizioni = null;
+                        self.showAllRepetition();
+                        self.repeatDataFlag = false;
+                        self.manageFlag = false;
+                        self.isAdmin = false;
+                        self.activePrenotation = false;
+                    }
+                })
+            },
+            getAssociations: function(){
+                var self = this;
+                $.post(self.link, {"action" : "queryAssignmentCorsoDocente"}, (json) => {
+                    self.courseAndTeacher = json.data;
+
+                    self.viewMyPrenotation = false;
+                    self.insegnanti = null;
+                    self.ripetizioni = null;
+                    self.storicoFlag = false;
+                    self.corsi = null;
+                    self.insegnanti = null;
+                    self.repeatDataFlag = false;
+                    self.activePrenotation = false;
+                    self.manageFlag = true;
+
+                })
+            },
+            getRepeatData: function(){
+                var self = this;
+                $.get(self.link, {"action" : "corsi"}, (json) => {
+                    if (json.status === 200) {
+                        self.corsi = json.data;
+
+                    }
+                })
+                $.get(self.link, {"action" : "queryAllDocenti"}, (json) => {
+                    if (json.status === 200) {
+                        self.insegnanti = json.data;
+                    }
+                })
+                self.repeatDataFlag = true;
+                self.storicoFlag = false;
+                self.viewMyPrenotation = false;
+                self.ripetizioni = null;
+                self.manageFlag = false;
+                self.activePrenotation = false;
+            },
+            getAllCourses: function(){
+                var self = this;
+                $.get(self.link, {"action" : "corsi"}, (json) => {
+                    if(json.status === 200){
+                        self.courses = json.data;
+                    }
+                })
+            },
+            getDocentiNotAssigned: function(id){
+                var self = this;
+                $.get(self.link, {"action" : "queryDocentiNotAssignedAtCorso","idCorso" : id}, (json) => {
+                    if(json.status === 200){
+                        self.insegnanti = json.data;
+                    }
+                })
+            },
+            getTeacherAssignedToCourseForDelete: function(course){
+                var self = this;
+                $.get(self.link, {"corso": course.title, "action" : "insegnanti"}, (json) => {
+                    if(json.status === 200){
+                        self.insegnanti = json.data;
+                    }
+                })
+            },
+            assignDocenteCorso : function (){
+                var self = this;
+                $.get(self.link, {"action" : "assignCorsoDocente","idDocente": self.docenteSelezionato,"idCorso" : self.corsoSelezionato}, (json) => {
+                    if(json.status === 200){
+                        alert("Assegnamento completato con successo")
+                        self.corsoSelezionato = null;
+                        self.docenteSelezionato = null;
+                        self.getAssociations();
+                    }
+                })
+            },
+            eliminaDocenteCorso: function(){
+                var self = this;
+                $.get(self.link, {"action" : "deleteAssignmentCorsoDocente","idDocente": self.teacherToDelete,"idCorso" : self.courseToDelete.id}, (json) => {
+                    if(json.status === 200){
+                        alert("Eliminazione completata con successo")
+                        self.courseToDelete = null;
+                        self.teacherToDelete = null;
+                        self.getAssociations();
+                    }
+                })
+            },
+            addDocente: function (){
+                var self = this;
+                $.get(self.link, {"action" : "addDocente", "nome": this.nomeProfessore , "cognome" : this.cognomeProfessore}, (json) => {
+                    if(json.status === 200) {
+                        alert("Docente aggiunto correttamente");
+                        self.getRepeatData();
+                    }
+                })
+            },
+
+            deleteDocente: function(id){
+                var self = this;
+                $.get(self.link, {"action" : "deleteDocente", "idDocente": id}, (json) => {
+                    if(json.status === 200) {
+                        alert("Docente eliminato correttamente");
+                        self.getRepeatData();
+                    }
+                })
+            },
+
+            addCorso: function(){
+                var self = this;
+                $.get(self.link, {"action" : "addCorso", "titolo": self.titoloCorso}, (json) => {
+                    if(json.status === 200) {
+                        alert("Corso aggiunto correttamente");
+                        self.getRepeatData();
+                    }
+                })
+
+            },
+            deleteCorso: function(id){
+                var self = this;
+                $.get(self.link, {"action" : "deleteCorso", "idCorso": id}, (json) => {
+                    if(json.status === 200) {
+                        alert("Corso eliminato correttamente");
+                        self.getRepeatData();
+                    }
+                })
+            },
+
+
+            turnOnLoginPage: function (){
+                this.loginPage = true;
+                this.mainPage = false;
+
+            },
+            turnOffLoginPage: function () {
+                this.loginPage = false;
+                this.mainPage = true;
+
+            }
+        }
+    });
+</script>
+
+<script>
+    var app3 = new Vue({
+        el: '#app3',
+        data: {
+            errorMsg : false,
+            successMsg : false
+        },
+    });
+
+</script>
+
+</body>
+</html>
